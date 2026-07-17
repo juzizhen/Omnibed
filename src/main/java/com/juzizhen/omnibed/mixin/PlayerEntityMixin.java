@@ -1,6 +1,8 @@
 package com.juzizhen.omnibed.mixin;
 
 import com.juzizhen.omnibed.util.OmniBedPlayer;
+import net.minecraft.block.BedBlock;
+import net.minecraft.block.BlockState;
 import net.minecraft.entity.data.DataTracker;
 import net.minecraft.entity.data.TrackedData;
 import net.minecraft.entity.data.TrackedDataHandlerRegistry;
@@ -44,5 +46,31 @@ public abstract class PlayerEntityMixin implements OmniBedPlayer {
         PlayerEntity self = (PlayerEntity) (Object) this;
         byte dirId = self.getDataTracker().get(OMNIBED_DIR);
         return dirId == -1 ? null : Direction.byId(dirId);
+    }
+
+    @Inject(method = "tick", at = @At("HEAD"))
+    private void checkSecondaryBedValid(CallbackInfo ci) {
+        PlayerEntity self = (PlayerEntity) (Object) this;
+
+        if (!self.getWorld().isClient && self.isSleeping() && this.secondaryBedPos != null) {
+            BlockState state = self.getWorld().getBlockState(this.secondaryBedPos);
+
+            if (!(state.getBlock() instanceof BedBlock)) {
+                self.wakeUp(true, true);
+            }
+        }
+    }
+
+    @Inject(method = "wakeUp(ZZ)V", at = @At("TAIL"))
+    private void cleanOmniBedSecondaryState(boolean skipSleepTimer, boolean updateSleepingPlayers, CallbackInfo ci) {
+        PlayerEntity player = (PlayerEntity)(Object)this;
+        if (!player.getWorld().isClient && this.secondaryBedPos != null) {
+            BlockState s2 = player.getWorld().getBlockState(this.secondaryBedPos);
+            if (s2.getBlock() instanceof BedBlock) {
+                player.getWorld().setBlockState(this.secondaryBedPos, s2.with(BedBlock.OCCUPIED, false), 3);
+            }
+            this.secondaryBedPos = null;
+            this.omnibed$setSleepDirection(null);
+        }
     }
 }
